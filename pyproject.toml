@@ -1,0 +1,23 @@
+[project]
+name = "zopyx.ssl-cert-check"
+version = "0.1.0"
+description = "A tool to check SSL certificate expiration dates."
+authors = [{ name = "Andreas Jung", email = "info@zopyx.com" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "rich",
+    "asyncio",
+    "aiohttp",
+]
+
+[project.scripts]
+check-ssl-domains = "zopyx.ssl_cert_check.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zopyx"]
