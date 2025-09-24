@@ -76,13 +76,17 @@ async def main_async():
                     status = f"[bold green]{days_left} days[/bold green]"
                 table.add_row(host, port, str(days_left), status)
             else:
-                table.add_row(host, port, "N/A", f"[bold red]Error: {expiry_date}[/bold red]")
+                table.add_row(
+                    host, port, "N/A", f"[bold red]Error: {expiry_date}[/bold red]"
+                )
             progress.update(task, advance=1)
 
     console.print(table)
 
+
 def main():
     asyncio.run(main_async())
+
 
 if __name__ == "__main__":
     main()
