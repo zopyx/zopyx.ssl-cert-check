@@ -48,8 +48,16 @@ async def main_async():
         print(f"Error: Configuration file not found at {config_file}")
         return
 
+    domains = []
     with open(config_file, "r") as f:
-        domains = [line.strip().split() for line in f if line.strip()]
+        for line in f:
+            parts = line.strip().split()
+            if not parts:
+                continue
+            if len(parts) == 1:
+                domains.append((parts[0], "443"))
+            else:
+                domains.append((parts[0], parts[1]))
 
     console = Console()
     table = Table(title="SSL Certificate Expiration Check")
@@ -58,6 +66,7 @@ async def main_async():
     table.add_column("Expires In (Days)", style="green")
     table.add_column("Status", style="yellow")
 
+    rows = []
     with Progress() as progress:
         task = progress.add_task("[green]Checking domains...", total=len(domains))
         tasks = [
@@ -74,12 +83,18 @@ async def main_async():
                     status = f"[bold red]{days_left} days[/bold red]"
                 else:
                     status = f"[bold green]{days_left} days[/bold green]"
-                table.add_row(host, port, str(days_left), status)
+                rows.append((host, port, days_left, status))
             else:
-                table.add_row(
-                    host, port, "N/A", f"[bold red]Error: {expiry_date}[/bold red]"
+                rows.append(
+                    (host, port, -1, f"[bold red]Error: {expiry_date}[/bold red]")
                 )
             progress.update(task, advance=1)
+
+    rows.sort(key=lambda x: x[2])
+
+    for row in rows:
+        host, port, days_left, status = row
+        table.add_row(host, port, str(days_left) if days_left != -1 else "N/A", status)
 
     console.print(table)
 
