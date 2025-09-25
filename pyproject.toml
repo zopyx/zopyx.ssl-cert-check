@@ -1,6 +1,6 @@
 [project]
 name = "zopyx.ssl-cert-check"
-version = "0.3.0"
+version = "0.4.1"
 description = "A tool to check SSL certificate expiration dates."
 authors = [{ name = "Andreas Jung", email = "info@zopyx.com" }]
 license = { text = "MIT" }

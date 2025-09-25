@@ -8,6 +8,9 @@ from rich.progress import Progress
 import argparse
 from typing import Union, List, Tuple
 import re
+import importlib.metadata
+
+__version__ = importlib.metadata.version('zopyx.ssl-cert-check')
 
 
 def validate_domain(domain: str) -> bool:
@@ -129,6 +132,12 @@ async def main_async() -> None:
         description="Check SSL certificate expiration for a list of domains."
     )
     parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show program's version number and exit.",
+    )
+    parser.add_argument(
         "config_file",
         nargs="?",
         default=f"{Path.home()}/.ssl_domains",
@@ -231,7 +240,7 @@ async def main_async() -> None:
     if critical > 0:
         console.print(f"[bold red]• {critical} certificates expiring within 7 days[/bold red]")
     if warning > 0:
-        console.print(f"[bold yellow]• {warning} certificates expiring within 30 days[/bold yellow]")
+        console.print(f"[bold yellow]• {warning} certificates expiring within 30 days[/bold red]")
     if errors > 0:
         console.print(f"[bold red]• {errors} domains with errors[/bold red]")
 
