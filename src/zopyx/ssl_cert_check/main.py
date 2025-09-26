@@ -11,12 +11,12 @@ import re
 import importlib.metadata
 import ipaddress
 
-__version__ = importlib.metadata.version('zopyx.ssl-cert-check')
+__version__ = importlib.metadata.version("zopyx.ssl-cert-check")
 
 
 def validate_domain(domain: str) -> bool:
     """Validate domain name format."""
-    pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
+    pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
     return bool(re.match(pattern, domain)) and len(domain) <= 253
 
 
@@ -34,24 +34,26 @@ def validate_port(port_str: str) -> int:
 def parse_domains_file(config_file: Path) -> List[Tuple[str, int]]:
     """Parse domains configuration file and return list of (domain, port) tuples."""
     domains = []
-    
+
     with open(config_file, "r") as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
-            if not line or line.startswith('#'):
+            if not line or line.startswith("#"):
                 continue
-                
+
             parts = line.split()
             if not parts:
                 continue
-                
+
             domain = parts[0]
-            
+
             # Validate domain
             if not validate_domain(domain):
-                print(f"Warning: Invalid domain '{domain}' on line {line_num}, skipping")
+                print(
+                    f"Warning: Invalid domain '{domain}' on line {line_num}, skipping"
+                )
                 continue
-            
+
             # Handle port
             if len(parts) == 1:
                 port = 443
@@ -61,9 +63,9 @@ def parse_domains_file(config_file: Path) -> List[Tuple[str, int]]:
                 except ValueError as e:
                     print(f"Warning: {e} on line {line_num}, using port 443")
                     port = 443
-            
+
             domains.append((domain, port))
-    
+
     return domains
 
 
@@ -86,16 +88,18 @@ def is_private_ip(host: str) -> bool:
         return False
 
 
-async def get_cert_expiry_date(host: str, port: int, timeout: int = 5, allow_private_ips: bool = False) -> Union[datetime.datetime, str]:
+async def get_cert_expiry_date(
+    host: str, port: int, timeout: int = 5, allow_private_ips: bool = False
+) -> Union[datetime.datetime, str]:
     """
     Get SSL certificate expiry date for a given host and port.
-    
+
     Args:
         host: The hostname to check
         port: The port number
         timeout: Connection timeout in seconds
         allow_private_ips: Whether to allow connections to private IP addresses
-        
+
     Returns:
         datetime.datetime: The expiry date if successful (timezone-aware UTC)
         str: Error message if failed
@@ -103,57 +107,62 @@ async def get_cert_expiry_date(host: str, port: int, timeout: int = 5, allow_pri
     # SECURITY: Check for private IP addresses to prevent SSRF
     if not allow_private_ips and is_private_ip(host):
         return "Blocked: Private IP address (use --allow-private-ips to override)"
-    
+
     try:
         # Create secure SSL context with explicit settings
         ssl_context = ssl.create_default_context()
-        
+
         # SECURITY: Explicitly set minimum TLS version
         ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-        
+
         is_ip = is_ip_address(host)
-        
+
         # SECURITY: Ensure hostname verification is enabled for hostnames
         ssl_context.check_hostname = not is_ip
         ssl_context.verify_mode = ssl.CERT_REQUIRED
-        
+
         # For hostnames, pass server_hostname for SNI. Not applicable for IPs.
         server_hostname = host if not is_ip else None
-        
+
         _, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port, ssl=ssl_context, server_hostname=server_hostname), timeout=timeout
+            asyncio.open_connection(
+                host, port, ssl=ssl_context, server_hostname=server_hostname
+            ),
+            timeout=timeout,
         )
         cert = writer.get_extra_info("peercert")
-        
+
         if not cert:
             writer.close()
             await writer.wait_closed()
             return "No certificate found"
-        
+
         # Try different date formats
         not_after = cert.get("notAfter")
         if not not_after:
             writer.close()
             await writer.wait_closed()
             return "Certificate missing expiry date"
-        
+
         try:
             # SECURITY: Parse certificate date as UTC timezone-aware
             expiry_date = datetime.datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
             expiry_date = expiry_date.replace(tzinfo=datetime.timezone.utc)
         except ValueError:
             try:
-                expiry_date = datetime.datetime.strptime(not_after, "%b %d %H:%M:%S %Y GMT")
+                expiry_date = datetime.datetime.strptime(
+                    not_after, "%b %d %H:%M:%S %Y GMT"
+                )
                 expiry_date = expiry_date.replace(tzinfo=datetime.timezone.utc)
             except ValueError as e:
                 writer.close()
                 await writer.wait_closed()
                 return f"Unable to parse certificate date: {e}"
-        
+
         writer.close()
         await writer.wait_closed()
         return expiry_date
-        
+
     except ssl.SSLError as e:
         return f"SSL Error: {str(e)}"
     except ConnectionRefusedError:
@@ -243,33 +252,35 @@ async def main_async() -> None:
     rows = []
     with Progress() as progress:
         task = progress.add_task("[green]Checking domains...", total=len(domains))
-        
+
         # SECURITY: Limit concurrent connections to prevent resource exhaustion
         semaphore = asyncio.Semaphore(args.max_concurrent)
-        
+
         async def check_with_semaphore(host, port):
             async with semaphore:
-                return await get_cert_expiry_date(host, port, timeout=args.timeout, allow_private_ips=args.allow_private_ips)
-        
-        tasks = [
-            check_with_semaphore(host, port)
-            for host, port in domains
-        ]
+                return await get_cert_expiry_date(
+                    host,
+                    port,
+                    timeout=args.timeout,
+                    allow_private_ips=args.allow_private_ips,
+                )
+
+        tasks = [check_with_semaphore(host, port) for host, port in domains]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         for (host, port), result in zip(domains, results):
             # Handle exceptions from asyncio.gather
             if isinstance(result, Exception):
                 expiry_date = f"Unexpected error: {str(result)}"
             else:
                 expiry_date = result
-                
+
             # SECURITY: Use timezone-aware UTC for accurate comparison
             now = datetime.datetime.now(datetime.timezone.utc)
             if isinstance(expiry_date, datetime.datetime):
                 delta = expiry_date - now
                 days_left = delta.days
-                
+
                 # Color coding based on days left
                 if days_left < 0:
                     status = f"[bold red]EXPIRED ({abs(days_left)} days ago)[/bold red]"
@@ -279,11 +290,18 @@ async def main_async() -> None:
                     status = f"[bold yellow]WARNING ({days_left} days)[/bold yellow]"
                 else:
                     status = f"[bold green]OK ({days_left} days)[/bold green]"
-                    
+
                 rows.append((host, str(port), days_left, status))
             else:
-                rows.append((host, str(port), -999, f"[bold red]Error: {expiry_date}[/bold red]"))
-            
+                rows.append(
+                    (
+                        host,
+                        str(port),
+                        -999,
+                        f"[bold red]Error: {expiry_date}[/bold red]",
+                    )
+                )
+
             progress.update(task, advance=1)
 
     # Sort by days left (errors at the end)
@@ -295,21 +313,29 @@ async def main_async() -> None:
         table.add_row(host, port, days_display, status)
 
     console.print(table)
-    
+
     # Summary
     total_domains = len(domains)
     expired = sum(1 for _, _, days, _ in rows if isinstance(days, int) and days < 0)
-    critical = sum(1 for _, _, days, _ in rows if isinstance(days, int) and 0 <= days < 7)
-    warning = sum(1 for _, _, days, _ in rows if isinstance(days, int) and 7 <= days < 30)
+    critical = sum(
+        1 for _, _, days, _ in rows if isinstance(days, int) and 0 <= days < 7
+    )
+    warning = sum(
+        1 for _, _, days, _ in rows if isinstance(days, int) and 7 <= days < 30
+    )
     errors = sum(1 for _, _, days, _ in rows if days == -999)
-    
+
     console.print(f"\n[bold]Summary:[/bold] {total_domains} domains checked")
     if expired > 0:
         console.print(f"[bold red]• {expired} expired certificates[/bold red]")
     if critical > 0:
-        console.print(f"[bold red]• {critical} certificates expiring within 7 days[/bold red]")
+        console.print(
+            f"[bold red]• {critical} certificates expiring within 7 days[/bold red]"
+        )
     if warning > 0:
-        console.print(f"[bold yellow]• {warning} certificates expiring within 30 days[/bold red]")
+        console.print(
+            f"[bold yellow]• {warning} certificates expiring within 30 days[/bold red]"
+        )
     if errors > 0:
         console.print(f"[bold red]• {errors} domains with errors[/bold red]")
 
