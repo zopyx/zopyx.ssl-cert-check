@@ -49,6 +49,23 @@ check-ssl-domains /path/to/your/config_file
 
 The format of the configuration file is the same as the default one.
 
+### Security Options
+
+The tool includes several security-focused options:
+
+```bash
+# Allow connections to private IP addresses (use with caution)
+check-ssl-domains --allow-private-ips
+
+# Limit concurrent connections (default: 50)
+check-ssl-domains --max-concurrent 20
+
+# Set connection timeout (default: 5 seconds)
+check-ssl-domains --timeout 10
+```
+
+**Security Note**: By default, the tool blocks connections to private IP addresses to prevent Server-Side Request Forgery (SSRF) attacks. Only use `--allow-private-ips` if you need to check internal services and understand the security implications.
+
 ### Example output
 
 The tool will print a table with the host, port, days until expiration, and the status:
