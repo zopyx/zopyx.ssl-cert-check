@@ -22,6 +22,14 @@ uv pip install .
 
 The tool checks SSL certificate expiration for a list of domains specified in a configuration file.
 
+### Using uvx
+
+You can also run the tool directly using `uvx`:
+
+```bash
+uvx --from zopyx.ssl-cert-check ssl-cert-check
+```
+
 ### Default configuration
 
 By default, it looks for a file named `.ssl_domains` in your home directory.
